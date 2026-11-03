@@ -1,4 +1,3 @@
-```yaml
 name: Sync Fork
 
 on:
@@ -22,4 +21,3 @@ jobs:
           gh repo sync "$REPO" \
             --source "dengmeiluan/ticket-monitoring" \
             --branch "main"
-```
