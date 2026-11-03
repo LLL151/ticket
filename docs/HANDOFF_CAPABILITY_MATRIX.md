@@ -23,6 +23,7 @@
 
 > **这份文档写给**：接手继续这项工作的下一个会话。
 > **三份交接文档的阅读顺序**：① `docs/HANDOFF_FULL_SESSION.md`（全会话总览，先读）→ ② 本文（能力一致性专项）→ ③ `docs/HANDOFF_GUIDE.md`（发版与文档门禁体系）。
+> **本轮（2026-11-03）完整经验书**：`docs/SESSION_EXPERIENCE_GUIDE_2026-11-03.md`（本轮全部目标/期望、CI 并发与多程开口程改动、证据、判据陷阱、操作手册、未完成清单）；与本文冲突时以现场实测为准。
 > **与另一份文档的分工**：`docs/HANDOFF_GUIDE.md` 讲**通用**（发版流程、文档门禁体系、操作纪律）；
 > 本文讲**本轮这条线**——「10 渠道（5 浏览器 + 5 App）全维度能力一致 + 特色能力可独立识别/聚合 + 后续可拓展」，
 > 包括为什么这么改、哪些坑是真的、还剩什么、怎么验证。两份都要读，**本文优先看 §2 的现场核验**。
@@ -34,15 +35,22 @@
 
 10 家渠道（5 浏览器 + 5 App）× 7 个维度的能力矩阵**已从「只活在源码里」变成「界面上一张表」**，
 并修掉了「单程价冒充往返价」「同一件事两张表结论相反」「同一键写两遍、后者静默覆盖前值」三类诚实性缺陷。
-**2026-11-03 07:41 工作树实测**：全量非 UI **6149 passed / 19 skipped / 0 failed**（workers 8，产品代码指纹前后一致；含 r926 同程 PC 国际往返、r927 途牛 H5 国际往返、r930 多程解析器、r931 矩阵窄档，以及 Release 正文 8 条门禁——采集面/往返范围逐行与矩阵同源）；
+**2026-11-03 22:51 全量实测**：tracked collect **6493**（0f782f9 基线 6394 + r920 2 / r921 10 / r922 14 / r923 12 / r924 56 / UI shard 5）；本地 clean `8a69a1a` 全量 **6465 passed / 19 skipped / 0 failed**（602.73s，6484 口径），r924 补 9 项定向 76 passed；CI **4 测试片 + 2 UI 片**在 `8a69a1a` **全绿**（test 264/310/206/278s、UI 224/189s、ci-ok success，整轮 6m11s）；本地 clean `90b2154` **6440 passed / 44 skipped / 0 failed**（workers 8，419.64s，6484 口径）；CI 在 `90b2154`（docs HEAD）亦全绿；`0f782f9` 全量 **6375 passed / 19 skipped / 0 failed**（workers 8，608.29s，6394 口径，源码哈希 pin 通过）；CI 同款 4 片并发在 `62888c4`/`47731c9` 上 **6230 passed / 44 skipped / 0 failed**（四片合计 6274，此后新增开口程就绪轮询/链头断点测试 4 项由本次全量覆盖）；CI 已改为 4 runner 分片，`tools/ci_shard.py --stats 4` 自检并集+workflow 一致性，新增文件按 20s 自动进组；矩阵升 y、r958 配置控件与门禁修复均在其内（含 r926 同程 PC 国际往返、r927 途牛 H5 国际往返、r930 多程解析器、r931 矩阵窄档、r932 实际渠道错峰、r933 多程存储层、r934 多程配置/调度隔离、r938 Qunar 假票价守卫、r939 软拒诊断、r941 日桶下限、r942 携程多程解析、r943 轮尾采集/只读 API、r944 配置卡/概览整单卡、r946 来源页可溯源、r947 过期首段不提醒、r951 整单历史 sparkline、r953 CSV 导出、r956 矩阵 ctrip 多程 y/仅 2 段，以及 Release 正文 8 条门禁——采集面/往返范围逐行与矩阵同源）**2026-11-03 19:30 画中画**：App 登录从 520px 弹窗改为近全屏工作台（专注/可拖动浮窗/内联输入/设备 info），共享关闭停轮询；真渲染 1512/390 尺寸与浮窗/专注/输入/tap/swipe、浏览器弹窗 520 隔离、零 pageerror；App 图标独立 `.bic-app` squircle，智行去促销横幅，PiP 标题带 22px 官方图标；UI **670/670**。
 能力线 9 文件 **63 passed**（含 r903/r905）、`python -m core.channel_contract --strict` **10 家 × 11 轴无缺口**、
-UI **670/670**（2026-11-03 07:25 全量复跑，零 JS 错误；矩阵含携程 App round_trip=国内/国际、同程 App intl=日历/明细、同程 App round_trip=国际；r901 新增 390 档冻结首列 + 900 档无假提示真渲染；含 r905 行内自检按钮，另由 r905 真渲染 + r640 四档行高覆盖）、
-`release_align_check.py --local` **25/25 PASS**、站点戳 `code:b5ebddf01b2d` = 当前 `webui.py`。
-**2026-11-03 在线复核（发布树 0d4b058 / v1.5.307）**：tag `v1.0` → `0d4b058`；Release 正文
-v1.5.307 + 源码 0d4b058；四资产 updated 2026-11-02T08:07Z，SHA256SUMS 与 API digest **4/4 相等**；
-CI/release-build/Pages 均在 0d4b058 success；ghcr `latest` == `sha-0d4b058`（同 digest，匿名 manifest 200）；
-0 open issues / 0 open PRs。**在线已同源**。
-**未发布的部分**：工作树 10 渠道改动（含 r903–r926）尚未提交；live 8765 仍跑 7 渠道旧副本。
+UI **670/670**（2026-11-03 16:50 全量复跑，零 JS 错误；页面 JS 为最终态，此后仅服务端
+label/提醒改动由全量 pytest 覆盖；含矩阵 ctrip 多程 ✓ 仅 2 段与 r958 的 9 个配置控件；含 r946 多程来源链接与 r947 过期门；矩阵含携程 App round_trip=国内/国际、同程 App intl=日历/明细、同程 App round_trip=国际；r901 新增 390 档冻结首列 + 900 档无假提示真渲染；含 r905 行内自检按钮，另由 r905 真渲染 + r640 四档行高覆盖）、
+`release_align_check.py --local` **25/25 PASS**（2026-11-03 22:57，clean 克隆 `8a69a1a`，tracked 6484 / UI 670）、站点戳 `code:db416c15fca7` = 当前 `webui.py`（2026-11-03 21:24 重烘并随 `0f782f9` 推送）。
+**2026-11-03 21:12 在线复核（Release e65cee1 / v1.5.307）**：tag `v1.0` → `e65cee1`
+（09:54 由 `ab04c22` 重指，多 4 个提交）；Release 正文源码 `e65cee1`；CI/release-build/Pages
+在 `e65cee1` 均 success；ghcr `sha-e65cee1` = `latest` digest `5fb025bb3488…`（**同 digest**），
+`sha-ab04c22` 仍可拉取（digest `9b72acb1a6b9…`）但已不对应 Release；公开站点戳
+`code:db416c15fca7` 来自更新后的 main（release 树 webui 为 `6c85a00f14c1`）；
+**资产缺口**：`e65cee1` 四平台包构建早于 numpy 依赖声明，冻结包内滑块缺口检测
+会静默无候选；下一次发版必须按最终 `requirements.txt` 重建四平台包并重算 SHA；
+0 open issues / 0 open PRs。Release 正文/资产/tag 已同源。
+**发布状态**：Release `v1.0` → `e65cee1`（10 渠道正文，四资产 digest 4/4）；
+live 8765 已于 2026-11-03 08:58 切到 `_release_ab04`（`ab04c22` 树，PID 47952，webui sha12
+`6c85a00f14c1`，`/api/channel-dims` 10 家）。r933–r935 的源码增量尚未入该树。
 
 ### 历史记录（2026-11-02 01:52 预发布；数字非当前）
 **发布提交前**：README/EN 的跟踪计数要改成 **5885**、UI 自检 **670**（当前 5443/668 是
@@ -187,15 +195,17 @@ out = c.safe_fetch('SHA','BKK',['2026-11-01'], ret_date='2026-11-05')
 **注意「四源」不在此列**——它是一个**视图名**（four 视图把四种来源形态并排），
 不是渠道数量；我一度把它扫进来，立刻造成与渠道数无关的假红。
 
-### 1.5 多程：如实标「有入口、采集未接」
+### 1.5 多程：如实标「有入口、仅携程 PC 已接采集」
 
 去哪儿 App 首页原生有「单程/往返/多程」三档（`crawlers/app_qunar.py`
-`_ID_SINGLE_RT_SWITCH` 附近），但采集链路只实现了单程 + 往返。
-**矩阵记 `multi_city=""`（产品有入口、采集未接 = 未验证）**，不再写 `n`
-（n 只留给渠道真没有的能力/停服）。
-`DIM_TIP.multi_city` 写明「App 有入口，采集未接」。
+`_ID_SINGLE_RT_SWITCH` 附近），但 App 采集链路只实现了单程 + 往返。
+**浏览器端 ctrip PC 2 段已生产验证 → `multi_city=y`（scope=\"仅 2 段\"）；
+缺口程 2 段也已实测整单 ¥2184（9C8515+MM079，页面「多程含税价」；
+慢页以总价标签为就绪锚轮询；配置卡/概览/CSV/提醒标题按断点显示 `SHA→TYO / OSA→SHA`）；
+App 与其余浏览器仍 `""`（产品有入口、采集未接）**，不写 `n`（n 只留给
+渠道真没有的能力/停服）。`DIM_TIP.multi_city` 写明「App 有入口，采集未接」。
 
-### 1.6 多程要接，先做数据模型（未实现；设计草案，防「加个解析器就上」）
+### 1.6 多程要接，先做数据模型（数据层/携程采集已落地；配置/结果/推送未接）
 
 2026-11-03 真机补充：**渠道侧确实有多程结果面**——去哪儿 App 两段多程
 「选择航班」双栏（第一程/第二程，列项标「优惠前含税均价」+ 第二程加价），
@@ -227,7 +237,25 @@ out = c.safe_fetch('SHA','BKK',['2026-11-01'], ret_date='2026-11-05')
 只是中转第一段，此前误读为目的地）。同程 App 多程查询仍只出第一段。
 **唯一阻塞是本产品的单 O-D 模型/配置**，3+ 段流程未验；矩阵保持 `""`。
 解析器已落地 `crawlers/app_qunar_multi.py`（两程；基准价/页脚总价/+¥加价；
-真实夹具 + 6 tests），但**未接 fetch/存储/配置**，等模型落地再接。
+真实夹具 + 6 tests），但**未接 fetch/配置/UI**。
+**2026-11-03 08:30 数据层落地**：`core/multicity.py`（2–4 段归一、
+`segments_key`、MC extra，legs 禁止价格字段）+ `PriceStorage.itinerary_daily`
+（platform/route_id/segments_key/depart_date 主键 + total_price + legs_json）
++ `save_itinerary`/`itineraries`（legs 必须与 segments 逐段 from/to/date
+一致），11 tests。**2026-11-03 09:00 配置形状**：`Route.segments` 已接，
+`build_routes` 由 segments 派生首/末段与日期；`route_query_registry` 把多程
+航线单列跳过，**绝不进入单程调度**（日志留痕）。**2026-11-03 10:07–10:11
+采集/只读面**：`CtripCrawler.fetch_multi`（真实夹具 ¥1298 整单总价）+ 轮尾
+`collect_multicity`（按 `segments_key` 去重、首段过期跳过、只落渠道整单总价）
++ `GET /api/multicity`（真库 `mode=ro`，库/表缺失诚实空态，GET 不建库建表）
+已落地；r944 补齐配置卡（2–4 段）与概览整单卡（总价/整单线/未采集原因，
+不画空走势），r945 接整单提醒（去抖/回到线上方清 0/跌幅补推，通知未接受不
+写状态）、兼容 dict 航线并按用户勾选过滤采集/提醒；r946 又把渠道结果页 URL
+存进 `extra.prov` 并在概览给「来源」链接（仅 http(s)，旧行无链接）；r947 又让
+提醒跳过首段已过期行程（跨夜新鲜行不误推）；r951 合入 `itinerary_history`
+（90 天、按秒去重、只读真实落库点）与概览 sparkline（≥2 点才画，单点/空不补图）；
+r954 已有 2 段生产整单行（¥1476），矩阵 **ctrip=y（仅 2 段）**；3+ 段实测
+无组合卡、未接通，缺口程未验（后于 16:41 实测 ¥2184，见 §0）。
 
 **2026-11-03 06:08 携程 PC 多程实测（第二条口径坐实）**：用受信 profile 在
 `flights.ctrip.com` 列表页切「多程(含缺口程)」，两段 SHA→TYO 11-20 /
@@ -235,8 +263,11 @@ TYO→OSA 11-23 提交后落到
 `/online/list/multi-sha-tyo-tyo-osa?depdate=2026-11-20_2026-11-23&cabin=y_s&adult=1&child=0&infant=0`。
 「多程超低价」组合卡同时列两段（9C8515 + MM304），右侧价 **¥1298** 明写
 **「多程含税价」**；下方第一程候选同样逐条写「¥1298 起…¥1869 起 · 多程含税价」。
-即携程多程页面自报整单总价，不需要两段相加。采集端仍未接，原因同上（单 O-D
-模型/多段配置/结果面）；3+ 段与缺口程（open-jaw）未验，矩阵保持 `""`。
+即携程多程页面自报整单总价，不需要两段相加。采集端已接 `fetch_multi`
+（r942/r943，只采页面整单总价）；配置卡/概览整单卡/整单提醒/历史走势已接
+（r944/r951），CSV 导出已在 r953 接通；已有 2 段生产整单行（2026-11-03 12:52
+¥1476，IJ004 + MM304）；3 段实测结果页无「多程超低价」组合卡，解析器 empty，
+3+ 段未接通、缺口程（open-jaw）未验，矩阵 **ctrip=y（仅 2 段）**。
 
 ---
 
@@ -255,17 +286,17 @@ print('gaps zhixing:',app_alignment_gaps('app_zhixing'),' qunar:',app_alignment_
 ```
 **当前应看到的矩阵（10 渠道：5 浏览器 + 5 App；7 个维度 × 10 列）**：
 ```
-ctrip        domestic=y intl=y calendar=y detail=y round_trip=y  multi_city="" low_fare=y
+ctrip        domestic=y intl=y calendar=y detail=y round_trip=y  multi_city=y low_fare=y
 qunar        domestic=y intl=y calendar=y detail=y round_trip=y  multi_city="" low_fare=y
 fliggy       domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
 tongcheng    domestic=y intl=y calendar=y detail=y round_trip=y  multi_city="" low_fare=y
-tuniu        domestic=y intl=y calendar=n detail=y round_trip=y multi_city="" low_fare=y
+tuniu        domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
 app_zhixing  domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
 app_qunar    domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
 app_fliggy  domestic=y intl="" calendar="" detail=y round_trip="" multi_city="" low_fare=""
 app_ctrip    domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
 app_tongcheng domestic=y intl=y calendar=y detail=y round_trip=y multi_city="" low_fare=y
-gaps: app_zhixing=()   app_qunar=()   app_fliggy=(intl,calendar,round_trip,low_fare)   app_ctrip=()   app_tongcheng=()
+gaps: app_zhixing=(multi_city)   app_qunar=(multi_city)   app_fliggy=(intl,calendar,round_trip,multi_city,low_fare)   app_ctrip=(multi_city)   app_tongcheng=(multi_city)
 ```
 矩阵变了 → 先查是谁改的、为什么，**不要直接改门禁迁就**（见 §7.2）。
 
