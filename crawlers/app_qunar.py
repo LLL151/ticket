@@ -797,11 +797,42 @@ class AppQunarCrawler(AppCrawler):
         """
         low = xml or ""
         is_round = _ID_BACK_DATE_LL in low
-        # 多程页特征：有「第一程」+「第二程」段落，且没有首页城市位。
-        # 用一个能同时覆盖"在首页多程表单"和"在多程结果页"的判据。
-        is_multi = ("第一程" in low and "第二程" in low)
+        # 多程判据必须**精确**（2026-11-04 踩过坑）：
+        # 首页本来就有「多程」这个 tab 文案，`"多程" in xml` 在**正常单程首页**
+        # 上也是 True —— 用它当判据会把正常页面判成多程，进而误触发
+        # force-stop 重建（我第一版就这么写的，实测 175 节点的普通页也命中）。
+        #
+        # 真正的多程特征（两份现场实证）：
+        #   ① 多程**表单**：有「第一程」+「第二程」两段，且没有单程日期位；
+        #   ② 多程**结果页**：`未找到符合条件的多程航班` / `建议…分开预订`。
+        # 用这两条长文案，不会被 tab 文案误伤。
+        is_multi = (
+            ("第一程" in low and "第二程" in low)
+            or "多程航班" in low
+            or "分开预订" in low
+        )
+        # **首页「看起来是单程」不代表搜索就走单程**（2026-11-04 实测定论）：
+        # App 会把上一次搜索的模式记住。实测现场——
+        #   首页：有城市位、无「第一程」→ 看起来完全是单程
+        #   点搜索后：直接进「抱歉未找到符合条件的多程航班」结果页
+        #   第一程 海口→上海 2月14日（正是上一轮跑过的 HAK→SHA！）
+        # 也就是说 App 把那次单程搜索记成了**多程的第一段**，之后每次都按
+        # 多程发起。而此时页面判据（返程日期位/多程段）**全都命中不了**，
+        # 于是 `no-list-page` 连绵 34 次。
+        #
+        # 实测解法：**搜索前点一次「单程」tab** 就恢复了——
+        #   点完再搜索 → 多程航班=False / 第一程=False / 487 节点 / detect_state=ok
+        # 所以这里改成"幂等地点一次单程"：已经单程时点它无副作用，
+        # 而它能把 App 内部记错的搜索模式重置回单程。
         if not (is_round or is_multi):
-            return xml
+            # 幂等重置：有「单程」就点一次，然后直接返回新页面。
+            seg0 = _find_id(low, _ID_SINGLE_ONLY_SWITCH) \
+                or _find_text(low, "单程")
+            if seg0 is None:
+                return xml
+            dev.tap(*_center(seg0))
+            _sleep(2)
+            return dev.dump() or xml
         seg = _find_id(xml, _ID_SINGLE_ONLY_SWITCH)
         if seg is None:
             seg = _find_text(xml, "单程")
@@ -920,6 +951,31 @@ class AppQunarCrawler(AppCrawler):
         # 日期位在不在，只点一次「单程」，与往返流程切档同源。
         xml = self._switch_to_single(dev, xml)
 
+        # **兜底：切档失败就硬重建**（2026-11-04）。
+        # 多程**结果页**上没有「单程」控件、BACK 也退不回表单（现场
+        # `nolist-2026-11-16` 就是这种）。`_switch_to_single` 尽力之后若仍
+        # 看到多程特征，只剩一条路：force-stop + 深链，让 App 从首页入口重建
+        # （`_ensure_home` 内部已有这套）。重建后再切一次单程。
+        #
+        # ⚠ 判据必须精确：首页本身就有「多程」tab，用 `"多程" in xml` 会把
+        # 正常页面判成多程 → 每轮白做一次 force-stop（实测 175 节点普通页命中）。
+        _still_multi = (
+            ("第一程" in (xml or "") and "第二程" in (xml or ""))
+            or "多程航班" in (xml or "")
+            or "分开预订" in (xml or "")
+        )
+        if _still_multi:
+            self.logger.info("[%s] 仍停在多程页（无单程控件/BACK 退不出），"
+                             "force-stop 重建后重试单程", self.name)
+            xml = self._ensure_home(dev)
+            xml = self._switch_to_single(dev, xml)
+            if ("第一程" in (xml or "") and "第二程" in (xml or "")) \
+                    or "多程航班" in (xml or ""):
+                # 重建也救不回来：如实记账，别假装在单程页上继续跑
+                self.path_note("app-mode", "timeout",
+                               detail="多程档残留：切单程与重建均未成功")
+                return []
+
         from_name = self._city_name(from_city)
         to_name = self._city_name(to_city)
 
@@ -1011,6 +1067,26 @@ class AppQunarCrawler(AppCrawler):
                                     self.name, target)
                 self._ensure_home(dev)
                 return [], "pick-date-failed"
+        # **流程留痕**（2026-11-04）：城市/日期都过了，把"搜索前的页面长什么样"
+        # 记一行。`no-list-page` 以前只看得到最终结果，看不出按下搜索时
+        # 表单是哪个档——同一句账错了 34 次。这一行让"点之前是什么状态"
+        # 直接可查，不用再翻 8KB 的 dump。
+        try:
+            _pre = dev.dump() or ""
+            _marks = [lab for lab, mk in
+                      (("单程日期", _ID_DEP_DATE_TV),
+                       ("返程日期", _ID_BACK_DATE_LL),
+                       ("城市位", _ID_DEP_CITY),
+                       ("搜索键", "搜索"),
+                       ("查价", "查价"),
+                       ("多程段", "第一程"),
+                       ("多程结果", "多程航班"))
+                      if mk in _pre]
+            self.logger.info("[%s] %s 搜索前页面：%d 字，命中 %s",
+                             self.name, target, len(_pre),
+                             "/".join(_marks) or "无已知标记")
+        except Exception:
+            pass
         return self._search_and_parse(dev, target, from_city, to_city)
 
     def _ensure_home(self, dev):
@@ -1512,8 +1588,55 @@ class AppQunarCrawler(AppCrawler):
     def _search_and_parse(self, dev, target: str, from_city: str = "",
                           to_city: str = ""):
         """点搜索并解析列表。返回 (prices, reason)，reason 见 `_one_date`。"""
-        # 点搜索前先滚到「搜索按钮可见」的位置（默认位下按钮不在视图树里）
+        # 点搜索前先滚到「搜索按钮可见」的位置（默认位下按钮不是视图树里）
         xml = self._scroll_home(dev, want="search")
+        # **点搜索前幂等重置「单程」**（2026-11-04 实测定论）。
+        #
+        # 现场：首页看起来完全是单程（有城市位、无「第一程」），但**一点搜索**
+        # 就进「抱歉未找到符合条件的多程航班」——因为 App 把上一次单程搜索
+        # 记成了"多程的第一段"（页面全文本里 `第一程 海口→上海 2月14日`
+        # 正是上一轮跑过的 HAK→SHA）。
+        #
+        # 实测解法：**先点一次「单程」tab 再搜索**，立刻恢复：
+        #   点单程后 → 再搜索 → 多程航班=False / 第一程=False / detect_state=ok
+        #
+        # 放在这里（而不是 `_fetch_locked` 开头）的原因：中间还隔着
+        # `_set_city` / `_pick_date` 两次页面跳转，任何一次都可能把搜索模式
+        # 又写回多程。**必须紧贴"点搜索"这一步做重置。**
+        _seg = _find_id(xml, _ID_SINGLE_ONLY_SWITCH) or _find_text(xml, "单程")
+        if _seg is not None:
+            # 点之前记下城市位文本，点之后核对——**切档有可能把表单清空**
+            # （2026-11-04 的安全检查）。如果清了，搜出来的是空航线，
+            # 会被记成"该日无航班"（把解析问题伪装成业务结论）。
+            _dep_before = str((_find_id(xml, _ID_DEP_CITY) or {}).get("text") or "")
+            _arr_before = str((_find_id(xml, _ID_ARR_CITY) or {}).get("text") or "")
+            dev.tap(*_center(_seg))
+            _sleep(2)
+            xml = self._scroll_home(dev, want="search")
+            _dep_after = str((_find_id(xml, _ID_DEP_CITY) or {}).get("text") or "")
+            _arr_after = str((_find_id(xml, _ID_ARR_CITY) or {}).get("text") or "")
+            if (_dep_before or _arr_before) and not (_dep_after or _arr_after):
+                # 城市位被清空：这次不能搜，如实报（可重设城市后重试）
+                self.logger.warning(
+                    "[%s] 切单程把城市位清空了（%r/%r → 空），本次不搜索",
+                    self.name, _dep_before, _arr_before)
+                self.path_note(
+                    "app-mode", "timeout",
+                    detail="切单程后城市位被清空（需重设城市）")
+                return [], "city-cleared-by-reset"
+        # **点搜索前先确认「现在是单程表单」**（2026-11-04）。
+        #
+        # 不确认就直接点：若表单还停在多程/往返档，点下去得到的是
+        # "多程结果页"（`抱歉未找到符合条件的多程航班`），而 `detect_state`
+        # 在那里拿不到"起降时刻对" → 一直等满 60s → 记 `no-list-page`。
+        # 账本上只看到"列表页没出现"，**看不出是档位不对**——实测错了 34 次。
+        # 这里提前判一次，把原因写清楚。
+        _mul = ("第一程" in (xml or "") and "第二程" in (xml or ""))
+        _mul = _mul or ("多程航班" in (xml or "")) or ("分开预订" in (xml or ""))
+        if _mul:
+            self.path_note("app-mode", "timeout",
+                           detail="点搜索前发现停在多程档（已重置仍未切回）")
+            return [], "multi-city-form"
         # 搜索控件有两种落法（同一 div 在不同渲染帧里给 id 或只给文字），
         # 只认 id 会间歇性 `no-search-button`——真机实测过。
         btn = _search_widget(xml)
