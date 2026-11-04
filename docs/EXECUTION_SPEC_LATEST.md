@@ -26,44 +26,17 @@
 
 ## 1. 项目事实与当前状态（开工必核验）
 
-### 1.0 当前状态快照（2026-11-03 12:02，先核验再干活）
+### 1.0 当前状态快照（2026-11-04 12:25，先核验再干活）
 
-- **代码树**：HEAD `c116273` 已含 r933–r956（多程数据层/配置形状/实际渠道错峰/
-  日桶下限守卫/携程多程采集/轮尾采集/只读 API/配置卡/概览整单卡/提醒接线/来源页
-  可溯源/过期首段不提醒/整单历史 sparkline/CSV 导出/2 段矩阵升 y）；live 8765 于
-  **2026-11-03 08:58** 切到 `_release_ab04`（live 树 `ab04c22`，webui sha12
-  `6c85a00f14c1`，PID 47952；`/api/channel-dims` 10 家）；r933–r956 尚未入该树。
-- **门禁**：tracked collect **6493**（2026-11-03 23:09 核对，含 r920 +2 / r921 +10 / r922 +14 / r923 +12 / r924 +56 / UI shard +5）。
-  本地 clean 全量在 HEAD `8a69a1a`：**6465 passed / 19 skipped / 0 failed**
-  （workers 8，602.73s，6484 口径）；r924 补 9 项后定向 **76 passed**。
-  CI **4 测试片 + 2 UI 片**在 `8a69a1a` **全绿**（test 264/310/206/278s、
-  UI 224/189s、`ci-ok` success，整轮 6m11s）；分片权重已含 1.0s/文件导入开销。
-  CI 已把全量 pytest 拆到 4 台 runner：
-  `tools/ci_shard.py` 按 `tests/ci_durations.json` 历史耗时贪心均分，跑测前
-  `--stats 4` 自检并集=全部 `tests/test_*.py`（新增文件按 20s 自动进组）+ workflow
-  片数/选片/loadfile/ci-ok/取消旧跑一致性；`test/uitest` 各加 45 分钟超时，
-  `ci-ok` 聚合两泳道。2026-11-03 16:25 CI 同款 4 片并发在 `62888c4`/`47731c9`
-  上 **6230 passed /
-  44 skipped / 0 failed**（四片合计 6274；此后新增 4 项由本次全量覆盖；各片
-  源码哈希一致）。分片暴露的两处环境竞态已改成注入/skip（r290 配置注入、
-  r793 空账本守卫），不再记产品红。此前 14:46 的 **6236 passed / 19 skipped /
-  0 failed**（含未跟踪并行 WIP，共 6255）为旧口径。
-  此前 7 红全部闭合：6 项单飞全绿（r319 proxy / r660 负控 / r845×2 /
-  r999×2，xdist 竞争）；r601 配置可达性已补 9 个页面控件 + 保存写回 + 钳制
-  （见 r958），r601 **4 passed**、配置往返 **12 passed**、真渲染 9 控件零 pageerror
-  （14:20）。矩阵升 y 由 **138 定向 passed** 覆盖（13:33）；r952 已修掉此前的
-  4 个 xdist 假红。定向：多程 5 文件 **31 passed**（11:18）；合并后历史/导出
-  **17 passed**（12:46）；Release 正文 **8 passed**（10:36）；日桶 **16 passed**（10:10）。
-  UI **670/670**（2026-11-03 16:50 全量复跑，零 JS 错误；页面 JS 为最终态，此后仅服务端
-  label/提醒改动由全量 pytest 覆盖；含矩阵 ctrip 多程 ✓
-  仅 2 段与 r958 的 9 个配置控件；另含 r946 来源链接与
-  r947 过期门；矩阵含携程 App round_trip=国内/国际、同程 App intl=日历/明细、
-  同程 App round_trip=国际；r905 新增的行内自检按钮另由 `test_r905` 真渲染 +
-  `test_r640` 三档行高覆盖）；能力线 9 文件 **63 passed**（2026-11-03 09:55）；
-  `channel_contract --strict` **10 家 × 11 轴无缺口**（2026-11-03 10:13）；
-  `release_align_check --local` **25/25 PASS**（2026-11-03 22:57，clean 克隆 `8a69a1a`，
-  tracked 6484 / UI 670）；静态站 `code:db416c15fca7` 已按当前 webui 重烘并随
-  `0f782f9` 推送，线上 Pages 匿名请求实测同戳。
+- **代码树**：HEAD `1c0b8c4`（r925–r939 + r959 已入库）：设备锁 owner/预算观测上健康页、
+  `fetch_budget_s` 配置控件、qunar 城市档位自愈/¥ 价与中转航班号归一、`paced` 主动让位、
+  App 帧预算/弹层 BACK 重试、智行日期入口兼容横线格式、失败现场落盘。
+- **门禁**（2026-11-04 当时快照）：tracked collect **6643**；干净克隆 `1c0b8c4` 全量 **6597 passed / 46 skipped /
+  0 failed**（488.26s，6643 口径；46 skip 为无生产账本/真机样本），UI **670/670**；
+  CI 4 测试片 + 2 UI 片在 `1c0b8c4` 上重跑；`channel_contract --strict` 10 家 × 11 轴无缺口；
+  `release_align_check --local` 25/25；静态站戳 `code:f479ecf59efd` = 当前 `webui.py`。
+- **发布**：Release 本轮从 `532072e` 再对齐到本次文档提交（代码 `1c0b8c4`）：四平台资产重建、
+  初版式正文更新、tag 最后重指；内容含 App 图标精修与 r935–r939 健壮性修复。
 - **多程开口程（2026-11-03 16:41 实测）**：profile 副本 + 临时库跑
   SHA→TYO 11-20 / OSA→SHA 11-26，页面「多程超低价」组合卡自报
   **「多程含税价 ¥2184」**（legs 9C8515 + MM079），`tripType=MC`、
@@ -83,9 +56,10 @@
   像素门禁 `test_app_zhixing_icon_has_no_promo_banner`。
 - **唯一声明源**：`core/channels.py`。新增渠道/维度先跑 `python -m core.channel_contract --strict`
   与 `test_r903/r904/r905`；声明字典禁止重复键，hint 承诺的按钮必须真实渲染。
-- **发布状态**：Release `v1.0` → `e65cee1`（2026-11-03 09:54 由 `ab04c22` 重指，多 4 个提交；v1.5.307，10 渠道正文/四资产 digest 4/4；CI/release-build/Pages 在 `e65cee1` 均 success；**该轮四平台包构建早于 `numpy` 依赖声明（21:10），冻结包内滑块缺口检测会静默无候选——下一次发版必须按最终 `requirements.txt` 重建四平台包并重算资产 SHA/正文**）；ghcr `sha-e65cee1` = `latest` digest `5fb025bb3488…`（同 digest）；`sha-ab04c22` 仍可拉取（digest `9b72acb1a6b9…`）但已不对应 Release；公开站点戳 `code:db416c15fca7` 由更新后的 main 部署（release 树 webui 为 `6c85a00f14c1`）；live 8765 仍是 `_release_ab04`（`ab04c22` 树）；
-  工作树未提交/未发布，推送、tag、Release、Pages、live 切换均需明确授权。
-  live 切换的可执行步骤与回滚见 `docs/LIVE_PROMOTION_RUNBOOK.md`。
+- **发布状态**：Release `v1.0` 本轮从 `e65cee1` 刷新到本次文档提交（代码 `0103b4f`）：
+  四平台包按最终 `requirements.txt` 重建、正文初版式重写、tag 最后重指；旧 `e65cee1`
+  资产（早于 numpy）作废。live 8765 仍 `_release_ab04`，切换需明确授权；
+  步骤与回滚见 `docs/LIVE_PROMOTION_RUNBOOK.md`。
 - **本文结构**：§1–§12 是执行口径；§12 之后是历次门禁与时序台账，**不是当前状态**；
   当前状态以本块与 §1 前段为准。
 
@@ -327,9 +301,15 @@
 | `parse_error` | 拿到了响应但解析失败 | 报文结构变化 |
 | `error` | 其他未归类失败（也是未知状态的兜底） | 兜底 |
 | `unsupported` | 该端/该产品本身不提供（如携程单程不售），非错误 | 业务边界 |
+| `paced` | **我方主动不发请求**：配额让位、节流跳过。既不是成功也不是失败，**不进爬取率分母** | 国际列表配额让位 |
 
 纪律：
 - **`empty` 与 `soft_reject`/`error` 不可互相冒充**：前者是业务结论，后者是没拿到结论。
+- **`paced` 与 `soft_reject` 不可互相冒充**：`paced` 是"我方为了守配额主动不发"，
+  `soft_reject` 是"发了、对方拒答"。混用会让**克制**看起来像**被风控**——
+  qunar 国际航线的配额让位原记 `soft_reject`，账面成功率只有 50%，
+  看着像渠道不行，实际它一直在守国际列表配额（2026-11-04 复盘）。
+  纯 `paced` 的一轮由 `core.yield_stats.is_paced()` 识别，直接跳过不记账。
 - 登录墙记 `login` 而不是 `error`（"该重登"与"该重试"是两回事）；门拒不触发退避与"会话失效"判定。
 - 新增状态必须先加进 `PATH_STATUS`，否则会被静默改写成 `error`，账本失真且无报错。
 - 每条账同时记 `http` 状态码与 `url`：200 空、202 软拒、444 关连接、403/429 的处置完全不同，只有原始码能事后区分。

@@ -36,6 +36,131 @@ else:
         os.path.dirname(os.path.abspath(__file__)))
 
 
+def wait_ready(dev, marker: str, *, exclude=(), frames: int = 14,
+               interval: float = 2.5, base_s: float = 90,
+               slow_s: float = 150, slow_frame_s: float = 6.0,
+               stable: int = 2) -> tuple:
+    """等页面就绪：**按帧数预算 + 自适应放宽**，返回 ``(ok, xml, why)``。
+
+    为什么不能只用固定秒数（2026-11-03 实测，14 次「首页未就绪」全是这个）：
+
+    * 空载时一帧 ``uiautomator dump`` ≈2–3s，60s 能取 20 帧；
+    * **整机跑着 5 个浏览器渠道时单帧能到 ~20s**，60s 只够 3 帧；
+    * 而"连续两帧都是首页"最少要 6 帧（中间任一帧是残留弹层就重置计数）。
+
+    于是慢机上"必然失败"，日志看起来却像"App 打不开"。改成帧数预算后，
+    慢机只是等得久一点，不会判错。
+
+    ``marker`` 是就绪标志文案（如「机票查询」）；``exclude`` 里的文案出现
+    则视为**未就绪**（如残留的日历弹层标题）。
+    """
+    ex = tuple(x for x in (exclude or ()) if x)
+    deadline = time.time() + float(base_s)
+    t0 = time.time()
+    hit = 0
+    xml = ""
+    for i in range(max(2, int(frames))):
+        time.sleep(float(interval))
+        xml = dev.dump() or ""
+        if i == 0 and (time.time() - t0) > float(slow_frame_s):
+            # 首帧就慢 → 整机被拖住，放宽总时长（仍然受帧数上限约束）
+            deadline = time.time() + float(slow_s)
+        ready = (str(marker) in xml) and not any(e in xml for e in ex)
+        if ready:
+            hit += 1
+            if hit >= max(1, int(stable)):
+                return True, xml, "ok"
+        else:
+            hit = 0
+        if time.time() > deadline:
+            break
+    return False, xml, ("未就绪：%d 帧 / 约 %ds 内没等到「%s」"
+                        % (i + 1, int(time.time() - t0), marker))
+
+
+def save_scene(tag: str, xml: str, *, prefix: str = "app", root: str = "",
+               limit: int = 150) -> str:
+    """把「屏幕上可读的节点」落一份到 ``debug/scene``，返回落盘路径。
+
+    为什么要有这个（2026-11-04）：App 渠道失败时账本只留一行状态
+    （`no-list-page` / `无法识别的页面状态`），**看不出当时停在哪一屏**。
+    这类"认不出页面"的失败最需要现场，而原来只有 qunar 自己写了一份
+    `_save_fail_scene`，其它渠道出问题时**完全没有证据**——
+    于是同一个失败连查几轮还在猜。
+
+    真机 dump 常 200KB 不宜整份保存：只留前 ``limit`` 条带
+    文案/id/content-desc 的节点（含坐标）。写文件失败不影响采集。
+
+    ``TICKET_SCENE_DIR`` 是测试隔离锚（`tests/conftest.py`）：替身设备
+    故意失败时按 CWD 写会把合成现场混进生产 ``debug/scene``（实测踩过）。
+    """
+    try:
+        import os as _os
+        import re as _re
+        import time as _t
+        d = (root or _os.environ.get("TICKET_SCENE_DIR")
+             or _os.path.join("debug", "scene"))
+        _os.makedirs(d, exist_ok=True)
+        p = _os.path.join(d, "%s_%s_%s.txt"
+                          % (prefix, _t.strftime("%Y%m%d_%H%M%S"), tag))
+        rows = []
+        for m in _re.finditer(r"<node\b([^>]*?)/?>", xml or ""):
+            seg = m.group(1)
+            txt = _re.search(r'text="([^"]*)"', seg)
+            rid = _re.search(r'resource-id="([^"]*)"', seg)
+            dsc = _re.search(r'content-desc="([^"]*)"', seg)
+            bnd = _re.search(
+                r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', seg)
+            t = (txt.group(1) if txt else "").strip()
+            i_ = (rid.group(1) if rid else "").strip()
+            c_ = (dsc.group(1) if dsc else "").strip()
+            if not (t or i_ or c_) or not bnd:
+                continue
+            rows.append("%s | %s | %s | %s,%s,%s,%s"
+                        % (i_.split("/")[-1] or c_[:40], t, c_[:60],
+                           bnd.group(1), bnd.group(2),
+                           bnd.group(3), bnd.group(4)))
+            if len(rows) >= max(1, int(limit)):
+                break
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.write("\n".join(rows) + "\n")
+        return p
+    except Exception:
+        return ""
+
+
+def dismiss_until_gone(dev, marker: str, *, tries: int = 2,
+                       wait_s: float = 1.5) -> tuple:
+    """弹层/页面标记还在时按 BACK 尝试关掉：返回 ``(gone, xml)``。
+
+    为什么需要（2026-11-03~04 实测 15 次）：App 里"点日期 → 日历弹层应自己关"，
+    但落点偶尔偏到弹层头部，于是弹层不关。原代码**直接判失败放弃**
+    （`点了日期但弹层没关` → 明细页没数据 → 整条航线白跑）。
+    而这类失败是**可恢复**的：按一次 BACK 关掉弹层，再点一次就成了。
+
+    ``marker`` 是"弹层还在"的标志文案（如 ``Search_Calendar_Dialog``）。
+    """
+    xml = ""
+    for _ in range(max(1, int(tries))):
+        try:
+            xml = dev.dump() or ""
+        except Exception:
+            # uiautomator 挂掉时 dump 会抛：不能让它把整条采集带崩
+            return False, xml
+        if str(marker) not in xml:
+            return True, xml
+        try:
+            dev.keyevent("KEYCODE_BACK")
+        except Exception:
+            return False, xml
+        time.sleep(max(0.2, float(wait_s)))
+    try:
+        xml = dev.dump() or ""
+    except Exception:
+        return False, xml
+    return (str(marker) not in xml), xml
+
+
 class AppCrawler:
     """Android App 渠道基类（单设备串行采集）。"""
 
@@ -46,7 +171,10 @@ class AppCrawler:
     # 它们必须能独立入账——把"被挡住"记成 empty 或 error，等于让账本说谎。
     PATH_STATUS = ("ok", "empty", "login", "blocked", "timeout",
                    "error", "parse_error", "unsupported", "calendar",
-                   "soft_reject", "ad", "captcha", "face")
+                   "soft_reject", "ad", "captcha", "face",
+                   # `paced` = 我方主动不发请求（配额让位/节流跳过），
+                   # 与浏览器基类同一语义：不算被拒绝，不进爬取率分母
+                   "paced")
     # 会话是否可疑（webui 登录卡分层用），实例级每轮复位
     login_suspect: bool = False
 
@@ -547,12 +675,16 @@ class AppCrawler:
 
     def _note_round_yield(self) -> dict:
         try:
-            from core.yield_stats import default_ledger, statuses_ok
+            from core.yield_stats import default_ledger, statuses_ok, is_paced
             cfg = getattr(self, "config", None) or {}
             root = str(cfg.get("user_data_dir") or "user_data") \
                 if isinstance(cfg, dict) else "user_data"
             profile = str(getattr(self, "profile_name", "") or self.name)
             led = default_ledger(os.path.join(_REPO_ROOT, root), profile)
+            # 主动让位（配额/节流）**不算样本**：既不是成功也不是失败。
+            # 记进去会把"我方克制"读成"渠道不行"。
+            if is_paced(self.paths):
+                return {"ok": None, "rows": 0, "path": "paced", "skipped": True}
             ok, rows, path = statuses_ok(self.paths)
             if not ok and getattr(self, "_last_round_ok", False):
                 ok, rows = True, rows or 1
